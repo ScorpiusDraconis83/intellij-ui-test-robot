@@ -1,0 +1,58 @@
+package com.example.migration.starter
+
+import com.intellij.ide.starter.ide.IDETestContext
+import com.intellij.ide.starter.ide.IdeProductProvider
+import com.intellij.ide.starter.junit5.hyphenateWithClass
+import com.intellij.ide.starter.models.TestCase
+import com.intellij.ide.starter.plugins.PluginConfigurator
+import com.intellij.ide.starter.project.ReusableLocalProjectInfo
+import com.intellij.ide.starter.runner.CurrentTestMethod
+import com.intellij.ide.starter.runner.Starter
+import kotlin.io.path.Path
+import kotlin.io.path.createDirectories
+import kotlin.io.path.createFile
+
+/** Shared setup. Every test builds its own context and starts its own IDE. */
+abstract class StarterScenarioTest {
+
+  protected val pluginUnderTestId = "com.example.migration.sample"
+
+  private val ideVersion = requiredProperty("ide.version")
+  private val pluginUnderTest = Path(requiredProperty("path.to.build.plugin"))
+
+  protected fun context(): IDETestContext =
+    Starter.newContext(
+      CurrentTestMethod.hyphenateWithClass(),
+      TestCase(
+        IdeProductProvider.IU,
+        ReusableLocalProjectInfo(Path(requiredProperty("sample.project.dir")))
+      ).useRelease(ideVersion)
+    )
+      .apply { PluginConfigurator(this).installPluginFromPath(pluginUnderTest) }
+      .prepareProjectCleanImport()
+      .applyVMOptionsPatch {
+        addSystemProperty("ide.show.tips.on.startup.default.value", false)
+        addSystemProperty("jb.consents.confirmation.enabled", false)
+        addSystemProperty("jb.privacy.policy.text", "<!--999.999-->")
+        addSystemProperty("shared.indexes.download.auto.consent", true)
+      }
+      .addProjectToTrustedLocations()
+      .also { skipAutoTrial(it) }
+
+  /**
+   * Every scenario gets a fresh config directory, so the IDE sees a new user every time and
+   * starts a free trial a few seconds in, which opens a page over the editor in the middle of a
+   * scenario. The scenarios need none of the paid functionality. TrialStateUtils skips the
+   * trial when this marker is in the config directory.
+   */
+  private fun skipAutoTrial(context: IDETestContext) {
+    val configDir = context.paths.configDir
+    configDir.createDirectories()
+    configDir.resolve(".ce_migration_attempted").createFile()
+  }
+
+  private fun requiredProperty(name: String): String =
+    checkNotNull(System.getProperty(name)?.takeIf { it.isNotBlank() }) {
+      "System property '$name' is not set. Run ./gradlew :starter-driver:integrationTest"
+    }
+}
