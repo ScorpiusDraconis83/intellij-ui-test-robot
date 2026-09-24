@@ -1,6 +1,9 @@
 ![official JetBrains project](https://jb.gg/badges/official.svg)
 
 > This library is deprecated. New UI tests should use [Starter and Driver](https://plugins.jetbrains.com/docs/intellij/integration-tests.html).
+> They also ship far more ready-made code: about twenty fixtures here, all plain Swing widgets, against
+> over a hundred component classes there, most of them IDE parts such as the frame, the toolbars, the tool
+> windows and the Settings dialog.
 > See [migration-guide](migration-guide) for the same five scenarios written both ways.
 
 This library allows you to write and execute UI tests in IntelliJ IDEA. You can use it to test your plugin.
