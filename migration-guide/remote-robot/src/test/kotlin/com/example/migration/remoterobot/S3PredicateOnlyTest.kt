@@ -4,6 +4,7 @@ import com.example.migration.remoterobot.pages.allMenuItems
 import com.example.migration.remoterobot.pages.allSubmenus
 import com.example.migration.remoterobot.pages.idea
 import com.intellij.remoterobot.RemoteRobot
+import com.intellij.remoterobot.fixtures.JPopupMenuFixture
 import com.intellij.remoterobot.utils.keyboard
 import com.intellij.remoterobot.utils.waitForIgnoringError
 import org.junit.jupiter.api.Test
@@ -38,25 +39,30 @@ class S3PredicateOnlyTest : RemoteRobotScenarioTest() {
       textEditor(Duration.ofSeconds(90)).editor.rightClick()
     }
 
-    // 2 and 3. There is no popup object here. The entries are top level components, so the
-    // search starts from remoteRobot and crosses every open window. allMenuItems() and
-    // allSubmenus() live in pages/ActionMenuFixture.kt and are first used in step 4.
+    // 2. Take the popup. The popup is its own window rather than a part of the IDE frame, so the
+    // search starts from remoteRobot.
+    val menu = find<JPopupMenuFixture>(JPopupMenuFixture.byType(), Duration.ofSeconds(30))
+
+    // 3. Two collections, both scoped to the popup. A single query already handles both classes,
+    // so the second one is not there for coverage. Step 4 needs exactly one candidate, and only
+    // the submenus give it one. They live in pages/ActionMenuFixture.kt.
 
     // 4. Poll the submenus with a predicate.
     waitForIgnoringError(Duration.ofSeconds(90), description = "the Paste submenu") {
-      allSubmenus().count { it.text.contains("Paste") } == 1
+      menu.allSubmenus().count { it.text.contains("Paste") } == 1
     }
-    val pasteSpecial = allSubmenus().single { it.text.contains("Paste") }
+    val pasteSpecial = menu.allSubmenus().single { it.text.contains("Paste") }
 
     // Taken before the click, so step 6 has something to compare against.
-    val entryCount = allMenuItems().size
+    val entryCount = menu.allMenuItems().size
 
-    // 5. Click it.
+    // 5. Click it. menu.select() is shorter, but it needs one exact label, and it would find the
+    // leaf Paste rather than the submenu.
     pasteSpecial.click()
 
     // 6. It opened a submenu, so there are more entries on screen than before.
     waitForIgnoringError(Duration.ofSeconds(45), description = "the submenu to open") {
-      allMenuItems().size > entryCount
+      menu.allMenuItems().size > entryCount
     }
 
     // 7. A submenu is open on top of the menu, so two escapes.

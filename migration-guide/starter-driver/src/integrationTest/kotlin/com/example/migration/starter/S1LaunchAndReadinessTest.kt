@@ -8,6 +8,7 @@ import com.intellij.driver.sdk.ui.components.common.ideFrame
 import com.intellij.driver.sdk.ui.components.common.toolwindows.projectView
 import com.intellij.driver.sdk.waitFor
 import com.intellij.driver.sdk.waitForIndicators
+import com.intellij.driver.sdk.withRetries
 import com.intellij.ide.starter.driver.engine.runIdeWithDriver
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -36,10 +37,9 @@ class S1LaunchAndReadinessTest : StarterScenarioTest() {
         // 5. A project is open.
         assertNotNull(project) { "No project is open" }
 
-        // 6. Open the Project View.
-        leftToolWindowToolbar.projectButton.open()
+        // 6. The Project View. A fresh IDE opens with it showing, and every call on a component
+        // resolves it with a retry, so there is nothing to open and nothing to wait for first.
         projectView {
-          projectViewTree.waitFound()
           projectViewTree.waitForNodesLoaded()
 
           // 7. Expand src. The root node carries two pieces of text, the project name and its
@@ -55,10 +55,10 @@ class S1LaunchAndReadinessTest : StarterScenarioTest() {
         }
 
         // 9. Open the file with a real double click. The robot drops a click now and then on a
-        // loaded machine and only logs "Click was unsuccessful", so the click sits inside the wait.
-        waitFor("the Main.java tab to open", 90.seconds, interval = 5.seconds) {
+        // loaded machine and only logs "Click was unsuccessful", so the click is retried.
+        withRetries("Open Main.java from the Project View", times = 3) {
           projectView { projectViewTree.doubleClickPath("sample-project", "src", "Main", fullMatch = false) }
-          editorTabs().isTabOpened("Main.java")
+          editorTabs().tab("Main.java").waitFound(30.seconds)
         }
 
         // 10. The right file opened.

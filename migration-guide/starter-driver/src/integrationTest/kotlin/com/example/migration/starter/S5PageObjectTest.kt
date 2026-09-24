@@ -17,8 +17,6 @@ class S5PageObjectTest : StarterScenarioTest() {
       waitForIndicators(5.minutes)
 
       ideFrame {
-        leftToolWindowToolbar.projectButton.open()
-
         // 5. Use the wrapper. It reads like the built-in components because it is built the same way.
         val panel = projectPanel()
 

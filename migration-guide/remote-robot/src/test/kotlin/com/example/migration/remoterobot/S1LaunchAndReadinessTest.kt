@@ -4,6 +4,8 @@ import com.example.migration.remoterobot.pages.idea
 import com.example.migration.remoterobot.pages.isPluginEnabled
 import com.intellij.remoterobot.RemoteRobot
 import com.intellij.remoterobot.steps.CommonSteps
+import com.intellij.remoterobot.utils.attempt
+import com.intellij.remoterobot.utils.waitFor
 import com.intellij.remoterobot.utils.waitForIgnoringError
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
@@ -36,10 +38,10 @@ class S1LaunchAndReadinessTest : RemoteRobotScenarioTest() {
       assertTrue(projectName.isNotEmpty()) { "No project is open" }
       bringToFront()
 
-      // 6. Open the Project View by clicking the Project button on the left toolbar. The action
-      // id would be shorter, but CommonSteps.invokeAction() gives the action no component to read
-      // the project from, so it does nothing and reports no error. The button is a switch, hence
-      // the check before the click. Driver calls projectButton.open(), which only opens.
+      // 6. Open the Project View by clicking the Project button on the left toolbar. Every
+      // scenario shares one IDE, so an earlier one may have hidden it. The action id would be
+      // shorter, but CommonSteps.invokeAction() gives the action no component to read the project
+      // from, so it does nothing and reports no error. The button is a switch, hence the check.
       if (isProjectToolWindowVisible().not()) {
         projectStripeButton.click()
       }
@@ -74,14 +76,12 @@ class S1LaunchAndReadinessTest : RemoteRobotScenarioTest() {
       assertTrue(projectViewTree.isPathExists("sample-project", "src", "Util", fullMatch = false)) { "Util is missing, the tree shows: $rows" }
 
       // 9. Open the file with a real double click. The same dropped click as on the Starter side,
-      // and this library stays just as quiet about it, so the click sits inside the wait.
-      waitForIgnoringError(
-        Duration.ofSeconds(90),
-        Duration.ofSeconds(5),
-        description = "the editor to open"
-      ) {
+      // and this library stays just as quiet about it, so the click is retried.
+      attempt(3) {
         projectViewTree.doubleClickPath("sample-project", "src", "Main", fullMatch = false)
-        textEditors().isNotEmpty()
+        waitFor(Duration.ofSeconds(30), description = "the editor to open") {
+          textEditors().isNotEmpty()
+        }
       }
 
       // 10. The right file opened. The library has no fixture for editor tabs, so the test asks
