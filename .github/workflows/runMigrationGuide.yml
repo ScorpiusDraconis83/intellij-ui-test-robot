@@ -1,0 +1,100 @@
+name: Run migration guide UI tests
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "migration-guide/**"
+      - ".github/workflows/runMigrationGuide.yml"
+      - ".github/scripts/**"
+  schedule:
+    - cron: "17 2 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migration-guide
+  cancel-in-progress: ${{ github.event_name == 'push' }}
+
+jobs:
+  starter-driver:
+    name: Starter and Driver
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: migration-guide
+    env:
+      SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Start a virtual screen
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq fluxbox ffmpeg
+          Xvfb :99 -screen 0 1920x1080x24 &
+          for _ in $(seq 1 40); do [ -e /tmp/.X11-unix/X99 ] && break; sleep 0.5; done
+          DISPLAY=:99 fluxbox > /dev/null 2>&1 &
+          echo "DISPLAY=:99" >> "$GITHUB_ENV"
+
+      - name: Start recording the screen
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/record-screen.sh" start
+
+      - name: Run the scenarios
+        run: ./gradlew :starter-driver:integrationTest
+
+      - name: Stop recording the screen
+        if: always()
+        run: bash "$GITHUB_WORKSPACE/.github/scripts/record-screen.sh" stop
+
+      - name: Summarise
+        if: always()
+        run: python3 "$GITHUB_WORKSPACE/.github/scripts/summarise_tests.py" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Collect the recording
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-driver-video
+          path: migration-guide/screen.mp4
+          retention-days: 7
+          if-no-files-found: warn
+
+      - name: Collect test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-driver-results
+          path: migration-guide/starter-driver/build/test-results/
+          if-no-files-found: ignore
+
+      - name: Collect IDE logs and screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: starter-driver-ide-output
+          include-hidden-files: true
+          path: |
+            migration-guide/starter-driver/build/reports/
+            migration-guide/out/ide-tests/tests/**/log/**
+            migration-guide/starter-driver/out/ide-tests/tests/**/log/**
+          if-no-files-found: ignore
+
+      - name: Tell Slack
+        if: failure() && env.SLACK_WEBHOOK_URL != ''
+        uses: slackapi/slack-github-action@v4.0.0
+        with:
+          webhook: ${{ env.SLACK_WEBHOOK_URL }}
+          webhook-type: incoming-webhook
+          payload: |
+            text: ":x: Migration guide UI tests failed: <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|run ${{ github.run_number }}> on ${{ github.ref_name }}"
